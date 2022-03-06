@@ -31,7 +31,8 @@ typedef enum _relayState_t
 }newControlRelayState_t;
 /* Private define------------------------------------------------------------------------------*/
 #define TIME_BUTTON_POLLING 1000
-#define COUNT_BUTTON_POLLONG 70
+#define COUNT_BUTTON_2_POLLONG 70
+#define COUNT_BUTTON_1_POLLONG (60*60*20)
 #define TIME_RELAY_AUTO_OFF 1500
 /* Private macro------------------------------------------------------------------------------*/
 /* Private variables------------------------------------------------------------------------------*/
@@ -115,60 +116,73 @@ static void newControl_offAllRelay(void)
     @return 
     @function on/off
 */
-static void OptoAndRemote1Process(void)
+static void OptoAndRemote1Process(bool enable)
 {
     static GPIO_PinState pinStt[2] = {0, 0};
     static newControlRelayState_t state = NEW_CONTROL_RELAY_OFF;
     static uint32_t timePolling = 0;
-    static uint8_t countPolling = 0;
+    static uint32_t countPolling = 0;
     static bool flagPolling = false;
     
-    memset(pinStt, GPIO_PIN_SET, 2);
-    
-    if(flagPolling == false)
+    if(enable == false)
     {
-        pinStt[0] = HAL_GPIO_ReadPin(IN1_GPIO_Port, IN1_Pin);
-        pinStt[1] = HAL_GPIO_ReadPin(D0_GPIO_Port, D0_Pin);
+        state = NEW_CONTROL_RELAY_OFF;
+        timePolling = 0;
+        countPolling = 0;
+        flagPolling = false;
         
-        for(uint8_t i = 0; i < 2; i++)
-        {
-            if(pinStt[i] == GPIO_PIN_RESET)
-            {
-                HAL_Delay(100);
-                
-                state = !state;
-                
-                flagPolling = true;
-                
-                /// get current time
-                timePolling = HAL_GetTick();
-                
-                break;
-            }
-        }
+        /// get current time
+        timePolling = HAL_GetTick();
     }
     else
     {
-        if(HAL_GetTick() - timePolling > TIME_BUTTON_POLLING)
+        memset(pinStt, GPIO_PIN_SET, 2);
+        
+        if(flagPolling == false)
         {
-            timePolling = HAL_GetTick();
+            pinStt[0] = HAL_GPIO_ReadPin(IN1_GPIO_Port, IN1_Pin);
+            pinStt[1] = HAL_GPIO_ReadPin(D0_GPIO_Port, D0_Pin);
             
-            if(++countPolling >= 2)
+            for(uint8_t i = 0; i < 2; i++)
             {
-                countPolling = 0;
-                flagPolling = false;
+                if(pinStt[i] == GPIO_PIN_RESET)
+                {
+                    HAL_Delay(100);
+                    
+                    state = !state;
+                    
+                    flagPolling = true;
+                    
+                    /// get current time
+                    timePolling = HAL_GetTick();
+                    
+                    break;
+                }
             }
         }
+        else
+        {
+            if(HAL_GetTick() - timePolling > TIME_BUTTON_POLLING)
+            {
+                timePolling = HAL_GetTick();
+                
+                if(++countPolling >= COUNT_BUTTON_1_POLLONG)
+                {
+                    countPolling = 0;
+                    flagPolling = false;
+                }
+            }
+        }
+        
+        newControl_relay1State(state);
     }
-    
-    newControl_relay1State(state);
 }
 
 /** @brief OptoAndRemote1Process
     @return 
     @function on 1.5s -> off
 */
-static void OptoAndRemote2Process(void)
+static void OptoAndRemote2Process(bool enable)
 {
     static GPIO_PinState pinStt[2] = {0, 0};
     static newControlRelayState_t state = NEW_CONTROL_RELAY_OFF;
@@ -177,58 +191,72 @@ static void OptoAndRemote2Process(void)
     static bool flagPolling = false;
     static uint32_t timeTurnOffRelay = 0;
     
-    memset(pinStt, GPIO_PIN_SET, 2);
-    
-    if(flagPolling == false)
+    if(enable == false)
     {
-        pinStt[0] = HAL_GPIO_ReadPin(IN2_GPIO_Port, IN2_Pin);
-        pinStt[1] = HAL_GPIO_ReadPin(D1_GPIO_Port, D1_Pin);
+        state = NEW_CONTROL_RELAY_OFF;
+        timePolling = 0;
+        countPolling = 0;
+        flagPolling = false;
+        timeTurnOffRelay = 0;
         
-        for(uint8_t i = 0; i < 2; i++)
-        {
-            if(pinStt[i] == GPIO_PIN_RESET)
-            {
-                HAL_Delay(100);
-                
-                state = NEW_CONTROL_RELAY_ON;
-                
-                flagPolling = true;
-                
-                /// get current time
-                timePolling = HAL_GetTick();
-                timeTurnOffRelay = HAL_GetTick();
-                
-                break;
-            }
-        }
+        /// get current time
+        timePolling = HAL_GetTick();
+        timeTurnOffRelay = HAL_GetTick();
     }
     else
     {
-        if(HAL_GetTick() - timePolling > TIME_BUTTON_POLLING)
+        memset(pinStt, GPIO_PIN_SET, 2);
+        
+        if(flagPolling == false)
         {
-            timePolling = HAL_GetTick();
+            pinStt[0] = HAL_GPIO_ReadPin(IN2_GPIO_Port, IN2_Pin);
+            pinStt[1] = HAL_GPIO_ReadPin(D1_GPIO_Port, D1_Pin);
             
-            if(++countPolling >= COUNT_BUTTON_POLLONG)
+            for(uint8_t i = 0; i < 2; i++)
             {
-                countPolling = 0;
-                flagPolling = false;
+                if(pinStt[i] == GPIO_PIN_RESET)
+                {
+                    HAL_Delay(100);
+                    
+                    state = NEW_CONTROL_RELAY_ON;
+                    
+                    flagPolling = true;
+                    
+                    /// get current time
+                    timePolling = HAL_GetTick();
+                    timeTurnOffRelay = HAL_GetTick();
+                    
+                    break;
+                }
             }
         }
-    }
-    
-    if(state == NEW_CONTROL_RELAY_ON)
-    {
-        /// ktra thoi gian turn off relay
-        if(HAL_GetTick() - timeTurnOffRelay > TIME_RELAY_AUTO_OFF)
+        else
         {
-            timeTurnOffRelay = 0;
-            
-            state = NEW_CONTROL_RELAY_OFF;
+            if(HAL_GetTick() - timePolling > TIME_BUTTON_POLLING)
+            {
+                timePolling = HAL_GetTick();
+                
+                if(++countPolling >= COUNT_BUTTON_2_POLLONG)
+                {
+                    countPolling = 0;
+                    flagPolling = false;
+                }
+            }
         }
+        
+        if(state == NEW_CONTROL_RELAY_ON)
+        {
+            /// ktra thoi gian turn off relay
+            if(HAL_GetTick() - timeTurnOffRelay > TIME_RELAY_AUTO_OFF)
+            {
+                timeTurnOffRelay = 0;
+                
+                state = NEW_CONTROL_RELAY_OFF;
+            }
+        }
+        
+        newControl_relay2State(state);
     }
-    
-    newControl_relay2State(state);
-
 }
 
 /** @brief OptoAndRemote1Process
@@ -261,11 +289,11 @@ static void OptoAndRemoteEnableAndDisableProcess(void)
         }
     }
     
+    OptoAndRemote1Process(flagSystem);
+    OptoAndRemote2Process(flagSystem);
+    
     if(flagSystem == true)
     {
-        OptoAndRemote1Process();
-        OptoAndRemote2Process();
-        
         timeCompare = 100;
     }
     else
