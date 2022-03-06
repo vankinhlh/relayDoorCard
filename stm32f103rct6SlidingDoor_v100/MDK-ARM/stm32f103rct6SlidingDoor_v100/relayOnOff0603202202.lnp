@@ -32,7 +32,8 @@
 "stm32f103rct6slidingdoor_v100\cmsis_os2.o"
 "stm32f103rct6slidingdoor_v100\heap_4.o"
 "stm32f103rct6slidingdoor_v100\port.o"
---strict --scatter "stm32f103rct6SlidingDoor_v100\relayOnOff.sct"
+"stm32f103rct6slidingdoor_v100\newcontrol.o"
+--strict --scatter "stm32f103rct6SlidingDoor_v100\relayOnOff0603202202.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
---list "relayOnOff.map" -o stm32f103rct6SlidingDoor_v100\relayOnOff.axf
+--list "relayOnOff0603202202.map" -o stm32f103rct6SlidingDoor_v100\relayOnOff0603202202.axf

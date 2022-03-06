@@ -38,6 +38,8 @@
     #include "skybus_process.h"
     #include "skybus_setting.h"
     #include "skybus_opto.h"
+#else
+    #include "newControl.h"
 #endif
 /* USER CODE END Includes */
 
@@ -250,7 +252,8 @@ int main(void)
     
 //    /// get current Offset
     sys_process->OffsetReal();
-    
+  #else
+    newControlConfiguration();
   #endif
   /* USER CODE END 2 */
 
@@ -527,7 +530,8 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-      relayButtonProcess();
+//      relayButtonProcess();
+      newControlProcess();
     osDelay(1);
   }
   /* USER CODE END 5 */

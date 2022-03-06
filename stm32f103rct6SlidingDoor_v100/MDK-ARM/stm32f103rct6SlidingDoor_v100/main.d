@@ -41,3 +41,4 @@ stm32f103rct6slidingdoor_v100\main.o: ../Middlewares/Third_Party/FreeRTOS/Source
 stm32f103rct6slidingdoor_v100\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
 stm32f103rct6slidingdoor_v100\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3/portmacro.h
 stm32f103rct6slidingdoor_v100\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+stm32f103rct6slidingdoor_v100\main.o: ..\newControl\inc\newControl.h
