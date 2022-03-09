@@ -29,19 +29,59 @@ typedef enum _relayState_t
     NEW_CONTROL_RELAY_ON,
     
 }newControlRelayState_t;
+
+typedef enum
+{
+    NEW_CONTROL_DISABLE_SYSTEM,
+    NEW_CONTROL_ENABLE_SYSTEM,
+}newControlSystemStatus_t;
+
+typedef struct
+{
+    bool flag;
+    uint8_t count;
+    uint32_t time;
+}buttonManagement_t;
+
+typedef struct
+{
+    newControlSystemStatus_t system;
+
+    buttonManagement_t disable;
+}newControl_t;
 /* Private define------------------------------------------------------------------------------*/
-#define TIME_BUTTON_POLLING 1000
-#define COUNT_BUTTON_2_POLLONG 70
-#define COUNT_BUTTON_1_POLLONG (60*60*20)
-#define TIME_RELAY_AUTO_OFF 1500
+#define TIME_BUTTON_POLLING         1000
+#define COUNT_BUTTON_2_POLLONG      70
+#define COUNT_BUTTON_1_POLLONG      (90)//(60*60*20)
+#define COUNT_BUTTON_DIS_POLLING    70
+#define TIME_RELAY_AUTO_OFF         1500
+#define TIME_BUTTON_1_WAITTING      2000
+#define TIME_BUTTON_DIS_WAITTING    2000
+
+/*
+
+Button 1 : khong co tac dung
+Button 2 : on relay 1.5s xong off (vo hieu hoa trong 70s)
+Button 3 : enable/rs (70s) -> nhan giu lien tuc 2s disable board, off all relay(chi disable) (vo hieu hoa trong 70s)
+Button 4 : nhan la enable board (chi enable), 2s sau on relay 1.
+
+*/
 /* Private macro------------------------------------------------------------------------------*/
 /* Private variables------------------------------------------------------------------------------*/
+newControl_t newControl;
+
+/* Private function prototypes------------------------------------------------------------------------------*/
 /** @brief newControl_offAllRelay
     @return 
     @function off all realy
 */
 static void newControl_offAllRelay(void);
-/* Private function prototypes------------------------------------------------------------------------------*/
+
+/** @brief newControl_relay1State
+    @param[in] state : trang thai relay on/off
+    @return 
+*/
+static void newControl_relay1State(newControlRelayState_t state);
 /* Private functions------------------------------------------------------------------------------*/
 
 /** @group __NEWCONTROL_CONFIGURATION
@@ -58,6 +98,12 @@ void newControlConfiguration(void)
     
     /// turn off all relay
     newControl_offAllRelay();
+    
+    /// power on -> enable system
+    newControl.system = NEW_CONTROL_ENABLE_SYSTEM;
+    
+    /// set button 3 waitting 70s
+    newControl.disable.flag = true;
 }
 
 
@@ -116,65 +162,29 @@ static void newControl_offAllRelay(void)
     @return 
     @function on/off
 */
-static void OptoAndRemote1Process(bool enable)
+static void OptoAndRemote1Process(newControlSystemStatus_t enable)
 {
-    static GPIO_PinState pinStt[2] = {0, 0};
-    static newControlRelayState_t state = NEW_CONTROL_RELAY_OFF;
-    static uint32_t timePolling = 0;
-    static uint32_t countPolling = 0;
-    static bool flagPolling = false;
+    static uint32_t timeWaitOnRelay = 0;
+    static bool flagOnRelay = false;
     
-    if(enable == false)
+    if(enable == NEW_CONTROL_DISABLE_SYSTEM)
     {
-        state = NEW_CONTROL_RELAY_OFF;
-        timePolling = 0;
-        countPolling = 0;
-        flagPolling = false;
+        timeWaitOnRelay = HAL_GetTick();
         
-        /// get current time
-        timePolling = HAL_GetTick();
+        flagOnRelay = false;
     }
     else
     {
-        memset(pinStt, GPIO_PIN_SET, 2);
-        
-        if(flagPolling == false)
+        if(flagOnRelay == false)
         {
-            pinStt[0] = HAL_GPIO_ReadPin(IN1_GPIO_Port, IN1_Pin);
-            pinStt[1] = HAL_GPIO_ReadPin(D0_GPIO_Port, D0_Pin);
-            
-            for(uint8_t i = 0; i < 2; i++)
+            if(HAL_GetTick() - timeWaitOnRelay > 500)
             {
-                if(pinStt[i] == GPIO_PIN_RESET)
-                {
-                    HAL_Delay(100);
-                    
-                    state = !state;
-                    
-                    flagPolling = true;
-                    
-                    /// get current time
-                    timePolling = HAL_GetTick();
-                    
-                    break;
-                }
-            }
-        }
-        else
-        {
-            if(HAL_GetTick() - timePolling > TIME_BUTTON_POLLING)
-            {
-                timePolling = HAL_GetTick();
+                flagOnRelay = true;
                 
-                if(++countPolling >= COUNT_BUTTON_1_POLLONG)
-                {
-                    countPolling = 0;
-                    flagPolling = false;
-                }
+                /// on relay 1 cho den khi disable system
+                newControl_relay1State(NEW_CONTROL_RELAY_ON);
             }
         }
-        
-        newControl_relay1State(state);
     }
 }
 
@@ -182,7 +192,7 @@ static void OptoAndRemote1Process(bool enable)
     @return 
     @function on 1.5s -> off
 */
-static void OptoAndRemote2Process(bool enable)
+static void OptoAndRemote2Process(newControlSystemStatus_t enable)
 {
     static GPIO_PinState pinStt[2] = {0, 0};
     static newControlRelayState_t state = NEW_CONTROL_RELAY_OFF;
@@ -191,7 +201,7 @@ static void OptoAndRemote2Process(bool enable)
     static bool flagPolling = false;
     static uint32_t timeTurnOffRelay = 0;
     
-    if(enable == false)
+    if(enable == NEW_CONTROL_DISABLE_SYSTEM)
     {
         state = NEW_CONTROL_RELAY_OFF;
         timePolling = 0;
@@ -259,53 +269,181 @@ static void OptoAndRemote2Process(bool enable)
     }
 }
 
+/** @brief OptoAndRemoteDisableSys
+    @return 
+    @function sau 2s disable system
+*/
+static int8_t OptoAndRemoteDisableSys(void)
+{
+    static GPIO_PinState pinStt[2] = {0, 0};
+    static bool flagButtonRelease[2] = {0, 0};
+    static uint32_t timeButtonRelease[2] = {0, 0};
+    
+    memset(pinStt, GPIO_PIN_SET, 2);
+    
+    pinStt[0] = HAL_GPIO_ReadPin(IN3_GPIO_Port, IN3_Pin);
+    pinStt[1] = HAL_GPIO_ReadPin(D2_GPIO_Port, D2_Pin);
+    
+    for(uint8_t i = 0; i < 2; i++)
+    {
+        if(pinStt[i] == GPIO_PIN_RESET && flagButtonRelease[i] == false)
+        {
+            flagButtonRelease[i] = true;
+            
+            timeButtonRelease[i] = HAL_GetTick();
+        }
+        
+        if(flagButtonRelease[i] == true && pinStt[i] == GPIO_PIN_RESET)
+        {
+            if(HAL_GetTick() - timeButtonRelease[i] > TIME_BUTTON_DIS_WAITTING)
+            {
+                timeButtonRelease[i] = 0;
+                
+                return i;
+            }
+        }
+        else
+        {
+            flagButtonRelease[i] = false;
+            
+            timeButtonRelease[i] = 0;
+        }
+    }
+    
+    return -1;
+}
+
+/** @brief OptoAndRemoteEnableSys
+    @return 
+    @function enable system
+*/
+static int8_t OptoAndRemoteEnableSys(void)
+{
+    static GPIO_PinState pinStt[2] = {0, 0};
+    static bool flagButtonRelease[2] = {0, 0};
+    static uint32_t timeButtonRelease[2] = {0, 0};
+    
+    memset(pinStt, GPIO_PIN_SET, 2);
+    
+    pinStt[0] = HAL_GPIO_ReadPin(IN4_GPIO_Port, IN4_Pin);
+    pinStt[1] = HAL_GPIO_ReadPin(D3_GPIO_Port, D3_Pin);
+    
+    for(uint8_t i = 0; i < 2; i++)
+    {
+        if(pinStt[i] == GPIO_PIN_RESET && flagButtonRelease[i] == false)
+        {
+            flagButtonRelease[i] = true;
+            
+            timeButtonRelease[i] = HAL_GetTick();
+        }
+        
+        if(flagButtonRelease[i] == true && pinStt[i] == GPIO_PIN_RESET)
+        {
+            if(HAL_GetTick() - timeButtonRelease[i] > 100)
+            {
+                timeButtonRelease[i] = 0;
+                
+                return i;
+            }
+        }
+        else
+        {
+            flagButtonRelease[i] = false;
+            
+            timeButtonRelease[i] = 0;
+        }
+    }
+    
+    return -1;
+}
+
 /** @brief OptoAndRemote1Process
     @return 
     @function enable and disable system
 */
-static void OptoAndRemoteEnableAndDisableProcess(void)
+
+/** @brief disableManager
+    @return 
+    @function disable manager
+*/
+static void disableManager(buttonManagement_t *disable, uint8_t countCompare)
 {
-    static GPIO_PinState pinStt[4] = {0, 0, 0, 0};
-    static bool flagSystem = true;
-    static uint32_t timeState = 0;
-    static uint32_t timeCompare = 100;
-    
-    memset(pinStt, GPIO_PIN_SET, 4);
-    
-    pinStt[0] = HAL_GPIO_ReadPin(IN3_GPIO_Port, IN3_Pin);
-    pinStt[1] = HAL_GPIO_ReadPin(IN4_GPIO_Port, IN4_Pin);
-    pinStt[2] = HAL_GPIO_ReadPin(D2_GPIO_Port, D2_Pin);
-    pinStt[3] = HAL_GPIO_ReadPin(D3_GPIO_Port, D3_Pin);
-    
-    for(uint8_t i = 0; i < 4; i++)
+    if(disable->flag == true)
     {
-        if(pinStt[i] == GPIO_PIN_RESET)
+        if(HAL_GetTick() - disable->time > 1000 || disable->time == 0)
         {
-            HAL_Delay(500);
+            disable->time = HAL_GetTick();
             
-            flagSystem = !flagSystem;
-            
-            break;
+            if(++disable->count > countCompare)
+            {
+                disable->count = 0;
+                disable->time = 0;
+                disable->flag = false;
+            }
         }
     }
+}
+
+/** @brief OptoAndRemote1Process
+    @return 
+    @function enable and disable system
+*/
+static void OptoAndRemoteEnableAndDisableProcess(newControl_t *control)
+{
+    static int8_t disablePin = -1;
+    static uint32_t timeLed = 0;
+    static uint16_t timeLedToggle = 0;
     
-    OptoAndRemote1Process(flagSystem);
-    OptoAndRemote2Process(flagSystem);
-    
-    if(flagSystem == true)
+    if(control->system == NEW_CONTROL_ENABLE_SYSTEM)
     {
-        timeCompare = 100;
-    }
-    else
-    {
-        newControl_offAllRelay();
+        if(control->disable.flag == true)
+        {
+            disableManager(&control->disable, COUNT_BUTTON_DIS_POLLING);
+        }
+        else
+        {
+            if(disablePin == -1)
+            {
+                disablePin = OptoAndRemoteDisableSys();
+            }
+            else
+            {
+                disablePin = -1;
+                
+                control->system = NEW_CONTROL_DISABLE_SYSTEM;
+                control->disable.flag = true;
+                
+                /// turn off all relay
+                newControl_offAllRelay();
+            }
+        }
+
         
-        timeCompare = 1000;
+        timeLedToggle = 100;
+    }
+    else if(control->system == NEW_CONTROL_DISABLE_SYSTEM)
+    {
+        if(disablePin == -1)
+        {
+            disablePin = OptoAndRemoteEnableSys();
+        }
+        else
+        {
+            disablePin = -1;
+            
+//            NVIC_SystemReset();
+            control->system = NEW_CONTROL_ENABLE_SYSTEM;
+        }
+        
+        timeLedToggle = 1000;
     }
     
-    if(HAL_GetTick() - timeState > timeCompare)
+    OptoAndRemote1Process(control->system);
+    OptoAndRemote2Process(control->system);
+    
+    if(HAL_GetTick() - timeLed >  timeLedToggle)
     {
-        timeState = HAL_GetTick();
+        timeLed = HAL_GetTick();
         
         HAL_GPIO_TogglePin(ledRun_GPIO_Port, ledRun_Pin);
     }
@@ -325,7 +463,7 @@ static void OptoAndRemoteEnableAndDisableProcess(void)
 */
 void newControlProcess(void)
 {
-    OptoAndRemoteEnableAndDisableProcess();
+    OptoAndRemoteEnableAndDisableProcess(&newControl);
 }
 
 

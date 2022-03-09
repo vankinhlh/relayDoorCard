@@ -49,7 +49,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>stm32f103rct6SlidingDoor_v100\</OutputDirectory>
-          <OutputName>relayOnOff0603202204</OutputName>
+          <OutputName>relayOnOff0603202210</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>
