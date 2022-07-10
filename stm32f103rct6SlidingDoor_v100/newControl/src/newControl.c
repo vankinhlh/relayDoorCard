@@ -51,9 +51,9 @@ typedef struct
 }newControl_t;
 /* Private define------------------------------------------------------------------------------*/
 #define TIME_BUTTON_POLLING         1000
-#define COUNT_BUTTON_2_POLLONG      70
+#define COUNT_BUTTON_2_POLLONG      7
 #define COUNT_BUTTON_1_POLLONG      (90)//(60*60*20)
-#define COUNT_BUTTON_DIS_POLLING    70
+#define COUNT_BUTTON_DIS_POLLING    7
 #define TIME_RELAY_AUTO_OFF         1500
 #define TIME_BUTTON_1_WAITTING      2000
 #define TIME_BUTTON_DIS_WAITTING    2000
